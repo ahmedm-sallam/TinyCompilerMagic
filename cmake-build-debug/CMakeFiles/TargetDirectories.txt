@@ -1,0 +1,3 @@
+C:/Users/Ahmed M.Sallam/CLionProjects/parser_assignement/cmake-build-debug/CMakeFiles/parser_assignement.dir
+C:/Users/Ahmed M.Sallam/CLionProjects/parser_assignement/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/Ahmed M.Sallam/CLionProjects/parser_assignement/cmake-build-debug/CMakeFiles/rebuild_cache.dir
