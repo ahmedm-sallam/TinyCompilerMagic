@@ -56,10 +56,10 @@ RM = "C:\Program Files\JetBrains\CLion 2022.2.1\bin\cmake\win\x64\bin\cmake.exe"
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = "D:\Faculty of Computer and Artificial Intelligence\Computer Science\CS_4_semesiter1\compiler\Compiler_A2_20210614_20200029_CS"
+CMAKE_SOURCE_DIR = "D:\Faculty of Computer and Artificial Intelligence\Computer Science\CS_4_semesiter1\compiler\code_generation_assignment\S3_20190562_20190041"
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = "D:\Faculty of Computer and Artificial Intelligence\Computer Science\CS_4_semesiter1\compiler\Compiler_A2_20210614_20200029_CS\cmake-build-debug"
+CMAKE_BINARY_DIR = "D:\Faculty of Computer and Artificial Intelligence\Computer Science\CS_4_semesiter1\compiler\code_generation_assignment\S3_20190562_20190041\cmake-build-debug"
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -86,9 +86,9 @@ rebuild_cache/fast: rebuild_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start "D:\Faculty of Computer and Artificial Intelligence\Computer Science\CS_4_semesiter1\compiler\Compiler_A2_20210614_20200029_CS\cmake-build-debug\CMakeFiles" "D:\Faculty of Computer and Artificial Intelligence\Computer Science\CS_4_semesiter1\compiler\Compiler_A2_20210614_20200029_CS\cmake-build-debug\\CMakeFiles\progress.marks"
+	$(CMAKE_COMMAND) -E cmake_progress_start "D:\Faculty of Computer and Artificial Intelligence\Computer Science\CS_4_semesiter1\compiler\code_generation_assignment\S3_20190562_20190041\cmake-build-debug\CMakeFiles" "D:\Faculty of Computer and Artificial Intelligence\Computer Science\CS_4_semesiter1\compiler\code_generation_assignment\S3_20190562_20190041\cmake-build-debug\\CMakeFiles\progress.marks"
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start "D:\Faculty of Computer and Artificial Intelligence\Computer Science\CS_4_semesiter1\compiler\Compiler_A2_20210614_20200029_CS\cmake-build-debug\CMakeFiles" 0
+	$(CMAKE_COMMAND) -E cmake_progress_start "D:\Faculty of Computer and Artificial Intelligence\Computer Science\CS_4_semesiter1\compiler\code_generation_assignment\S3_20190562_20190041\cmake-build-debug\CMakeFiles" 0
 .PHONY : all
 
 # The main clean target
@@ -116,24 +116,24 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named parser_assignement
+# Target rules for targets named code
 
 # Build rule for target.
-parser_assignement: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles\Makefile2 parser_assignement
-.PHONY : parser_assignement
+code: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Makefile2 code
+.PHONY : code
 
 # fast build rule for target.
-parser_assignement/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles\parser_assignement.dir\build.make CMakeFiles/parser_assignement.dir/build
-.PHONY : parser_assignement/fast
+code/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\code.dir\build.make CMakeFiles/code.dir/build
+.PHONY : code/fast
 
 main.obj: main.cpp.obj
 .PHONY : main.obj
 
 # target to build an object file
 main.cpp.obj:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles\parser_assignement.dir\build.make CMakeFiles/parser_assignement.dir/main.cpp.obj
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\code.dir\build.make CMakeFiles/code.dir/main.cpp.obj
 .PHONY : main.cpp.obj
 
 main.i: main.cpp.i
@@ -141,7 +141,7 @@ main.i: main.cpp.i
 
 # target to preprocess a source file
 main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles\parser_assignement.dir\build.make CMakeFiles/parser_assignement.dir/main.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\code.dir\build.make CMakeFiles/code.dir/main.cpp.i
 .PHONY : main.cpp.i
 
 main.s: main.cpp.s
@@ -149,7 +149,7 @@ main.s: main.cpp.s
 
 # target to generate assembly for a file
 main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles\parser_assignement.dir\build.make CMakeFiles/parser_assignement.dir/main.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\code.dir\build.make CMakeFiles/code.dir/main.cpp.s
 .PHONY : main.cpp.s
 
 # Help Target
@@ -160,7 +160,7 @@ help:
 	@echo ... depend
 	@echo ... edit_cache
 	@echo ... rebuild_cache
-	@echo ... parser_assignement
+	@echo ... code
 	@echo ... main.obj
 	@echo ... main.i
 	@echo ... main.s

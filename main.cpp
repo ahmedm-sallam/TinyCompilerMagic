@@ -1,7 +1,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <string>
+#include <iostream>
+
+using namespace std;
 /*
 
    _____              _        _                   __  __
@@ -15,10 +17,6 @@
  Ahmed Sallam 20210614
  Ahmed Alaa 20200029
 */
-
-
-
-using namespace std;
 
 /*
 { Sample program
@@ -305,6 +303,23 @@ void GetNextToken(CompilerInfo* pci, Token* ptoken)
     if(len>0) pci->in_file.Advance(len);
 }
 
+////////////////////////////////////////////////////////////////////////////////////
+// Parser //////////////////////////////////////////////////////////////////////////
+
+// program -> stmtseq
+// stmtseq -> stmt { ; stmt }
+// stmt -> ifstmt | repeatstmt | assignstmt | readstmt | writestmt
+// ifstmt -> if exp then stmtseq [ else stmtseq ] end
+// repeatstmt -> repeat stmtseq until expr
+// assignstmt -> identifier := expr
+// readstmt -> read identifier
+// writestmt -> write expr
+// expr -> mathexpr [ (<|=) mathexpr ]
+// mathexpr -> term { (+|-) term }    left associative
+// term -> factor { (*|/) factor }    left associative
+// factor -> newexpr { ^ newexpr }    right associative
+// newexpr -> ( mathexpr ) | number | identifier
+
 enum NodeKind{
     IF_NODE, REPEAT_NODE, ASSIGN_NODE, READ_NODE, WRITE_NODE,
     OPER_NODE, NUM_NODE, ID_NODE
@@ -337,376 +352,625 @@ struct TreeNode
     union{TokenType oper; int num; char* id;}; // defined for expression/int/identifier only
     ExprDataType expr_data_type; // defined for expression/int/identifier only
 
+    int line_num;
 
     TreeNode() {int i; for(i=0;i<MAX_CHILDREN;i++) child[i]=0; sibling=0; expr_data_type=VOID;}
 };
 
+struct ParseInfo
+{
+    Token next_token;
+};
 
-TreeNode* mathexprFun(CompilerInfo *compInfo, Token *next_token);
+void Match(CompilerInfo* pci, ParseInfo* ppi, TokenType expected_token_type)
+{
+    pci->debug_file.Out("Start Match");
+
+    if(ppi->next_token.type!=expected_token_type) throw 0;
+    GetNextToken(pci, &ppi->next_token);
+
+    fprintf(pci->debug_file.file, "[%d] %s (%s)\n", pci->in_file.cur_line_num, ppi->next_token.str, TokenTypeStr[ppi->next_token.type]); fflush(pci->debug_file.file);
+}
+
+TreeNode* MathExpr(CompilerInfo*, ParseInfo*);
 
 // newexpr -> ( mathexpr ) | number | identifier
-TreeNode* newexprFun(CompilerInfo* compInfo, Token *next_token)
+TreeNode* NewExpr(CompilerInfo* pci, ParseInfo* ppi)
 {
-    TreeNode* subTree=new TreeNode;
-    // Case Type is "Identifier" in "( mathexpr ) | number | identifier"
-     if(next_token->type==ID)
+    pci->debug_file.Out("Start NewExpr");
+
+    // Compare the next token with the First() of possible statements
+    if(ppi->next_token.type==NUM)
     {
+        TreeNode* tree=new TreeNode;
+        tree->node_kind=NUM_NODE;
+        char* num_str=ppi->next_token.str;
+        tree->num=0; while(*num_str) tree->num=tree->num*10+((*num_str++)-'0');
+        tree->line_num=pci->in_file.cur_line_num;
+        Match(pci, ppi, ppi->next_token.type);
 
-        // Copy data in next token in subTree id
-        AllocateAndCopy(&subTree->id, next_token->str);
-        GetNextToken(compInfo, next_token);
-        // Make type of node in subTree is ID_NODE
-        subTree->node_kind=ID_NODE;
-        return subTree;
-    }// Case Type is "number" in "( mathexpr ) | number | identifier"
-    else if(next_token->type==NUM)
-    {
-
-        // Copy data in next token in subTree num
-        subTree->num = stoi(next_token->str);
-        // Make type of node in subTree is NUM_NODE
-        subTree->node_kind=NUM_NODE;
-        GetNextToken(compInfo, next_token);
-
-        return subTree;
+        pci->debug_file.Out("End NewExpr");
+        return tree;
     }
 
-   // Case Type is LEFT_PAREN ( mathexpr ) in  "( mathexpr ) | number | identifier"
-   else if(next_token->type == LEFT_PAREN)
+    if(ppi->next_token.type==ID)
     {
-        GetNextToken(compInfo, next_token);
-        subTree= mathexprFun(compInfo, next_token);
-        GetNextToken(compInfo, next_token);
-        return subTree;
-    }
-   // When newexpr not ID Or NUM or LEFT_PAREN
-   else{
-         return nullptr ;
-   }
+        TreeNode* tree=new TreeNode;
+        tree->node_kind=ID_NODE;
+        AllocateAndCopy(&tree->id, ppi->next_token.str);
+        tree->line_num=pci->in_file.cur_line_num;
+        Match(pci, ppi, ppi->next_token.type);
 
+        pci->debug_file.Out("End NewExpr");
+        return tree;
+    }
+
+    if(ppi->next_token.type==LEFT_PAREN)
+    {
+        Match(pci, ppi, LEFT_PAREN);
+        TreeNode* tree=MathExpr(pci, ppi);
+        Match(pci, ppi, RIGHT_PAREN);
+
+        pci->debug_file.Out("End NewExpr");
+        return tree;
+    }
+
+    throw 0;
+    return 0;
 }
 
 // factor -> newexpr { ^ newexpr }    right associative
-TreeNode* factorFun(CompilerInfo* compInfo, Token *next_token)
+TreeNode* Factor(CompilerInfo* pci, ParseInfo* ppi)
 {
-   // Check first part "newexpr" in newexpr { ^ newexpr }
-    TreeNode* subTree= newexprFun(compInfo, next_token);
-   // Check second part "^" in newexpr { ^ newexpr }
-    if(next_token->type==POWER)
+    pci->debug_file.Out("Start Factor");
+
+    TreeNode* tree=NewExpr(pci, ppi);
+
+    if(ppi->next_token.type==POWER)
     {
-        TreeNode* subTreeTemp=new TreeNode;
-       // Store the type of next token
-        subTreeTemp->oper=next_token->type;
-        //Store the tree of newexp part as first child of the tree
-        subTreeTemp->child[0]=subTree;
-        GetNextToken(compInfo, next_token);
-        //Store the tree of factorFun as second child of the tree
-        subTreeTemp->child[1]= factorFun(compInfo, next_token);
-        // Make type of node in subTree is OPER_NODE
-        subTreeTemp->node_kind=OPER_NODE;
-        return subTreeTemp;
+        TreeNode* new_tree=new TreeNode;
+        new_tree->node_kind=OPER_NODE;
+        new_tree->oper=ppi->next_token.type;
+        new_tree->line_num=pci->in_file.cur_line_num;
+
+        new_tree->child[0]=tree;
+        Match(pci, ppi, ppi->next_token.type);
+        new_tree->child[1]=Factor(pci, ppi);
+
+        pci->debug_file.Out("End Factor");
+        return new_tree;
     }
-    return subTree;
+    pci->debug_file.Out("End Factor");
+    return tree;
 }
 
 // term -> factor { (*|/) factor }    left associative
-TreeNode* TermFun(CompilerInfo* compInfo, Token *next_token)
+TreeNode* Term(CompilerInfo* pci, ParseInfo* ppi)
 {
-    // Check first part "factor" in factor { (*|/) factor }
-    TreeNode* subTree= factorFun(compInfo, next_token);
-    //check second part (*|/) in factor { (*|/) factor
-    while(next_token->type==TIMES || next_token->type==DIVIDE)
-    {
-        TreeNode* subTreeTemp=new TreeNode;
-        // Store the type of next token
-        subTreeTemp->oper=next_token->type;
-        //Store the tree of factor part as first child of the tree
-        subTreeTemp->child[0]=subTree;
-        GetNextToken(compInfo, next_token);
-        //Store the tree of factorFun as second child of the tree
-        subTreeTemp->child[1]= factorFun(compInfo, next_token);
-        // Make type of node in subTree is OPER_NODE
-        subTreeTemp->node_kind=OPER_NODE;
-        subTree=subTreeTemp;
-    }
+    pci->debug_file.Out("Start Term");
 
-    return subTree;
+    TreeNode* tree=Factor(pci, ppi);
+
+    while(ppi->next_token.type==TIMES || ppi->next_token.type==DIVIDE)
+    {
+        TreeNode* new_tree=new TreeNode;
+        new_tree->node_kind=OPER_NODE;
+        new_tree->oper=ppi->next_token.type;
+        new_tree->line_num=pci->in_file.cur_line_num;
+
+        new_tree->child[0]=tree;
+        Match(pci, ppi, ppi->next_token.type);
+        new_tree->child[1]=Factor(pci, ppi);
+
+        tree=new_tree;
+    }
+    pci->debug_file.Out("End Term");
+    return tree;
 }
 
 // mathexpr -> term { (+|-) term }    left associative
-TreeNode* mathexprFun(CompilerInfo* compInfo, Token *next_token)
+TreeNode* MathExpr(CompilerInfo* pci, ParseInfo* ppi)
 {
-    // Check first part "term" in term { (+|-) term }
-    TreeNode* subTree= TermFun(compInfo, next_token);
-    //check second part (+|-) in term { (+|-) term }
-    while(next_token->type==PLUS || next_token->type==MINUS)
+    pci->debug_file.Out("Start MathExpr");
+
+    TreeNode* tree=Term(pci, ppi);
+
+    while(ppi->next_token.type==PLUS || ppi->next_token.type==MINUS)
     {
-        TreeNode* subTreeTemp=new TreeNode;
-        // Store the type of next token
-        subTreeTemp->oper=next_token->type;
-        //Store the tree of term part as first child of the tree
-        subTreeTemp->child[0]=subTree;
-        GetNextToken(compInfo, next_token);
-        //Store the tree of term part as second child of the tree
-        subTreeTemp->child[1]= TermFun(compInfo, next_token);
-        // Make type of node in subTree is OPER_NODE
-        subTreeTemp->node_kind=OPER_NODE;
-        subTree=subTreeTemp;
+        TreeNode* new_tree=new TreeNode;
+        new_tree->node_kind=OPER_NODE;
+        new_tree->oper=ppi->next_token.type;
+        new_tree->line_num=pci->in_file.cur_line_num;
+
+        new_tree->child[0]=tree;
+        Match(pci, ppi, ppi->next_token.type);
+        new_tree->child[1]=Term(pci, ppi);
+
+        tree=new_tree;
     }
-    return subTree;
+    pci->debug_file.Out("End MathExpr");
+    return tree;
 }
 
 // expr -> mathexpr [ (<|=) mathexpr ]
-TreeNode* exprFun(CompilerInfo* compInfo, Token *next_token )
+TreeNode* Expr(CompilerInfo* pci, ParseInfo* ppi)
 {
+    pci->debug_file.Out("Start Expr");
 
-    // Check first part "mathexpr" in  mathexpr [ (<|=) mathexpr ]
-    TreeNode* subTree= mathexprFun(compInfo, next_token);
-    // Check second part (<|=) in  mathexpr [ (<|=) mathexpr ]
-    if( next_token->type==LESS_THAN ||next_token->type==EQUAL )
+    TreeNode* tree=MathExpr(pci, ppi);
+
+    if(ppi->next_token.type==EQUAL || ppi->next_token.type==LESS_THAN)
     {
-        TreeNode* subTreeTemp=new TreeNode;
-        // Store the type of next token
-        subTreeTemp->oper=next_token->type;
-        //Store the tree of mathexpr part as first child of the tree
-        subTreeTemp->child[0]=subTree;
-        GetNextToken(compInfo, next_token);
-        //Store the tree of mathexpr part as second child of the tree
-        subTreeTemp->child[1]= mathexprFun(compInfo, next_token);
-        subTreeTemp->node_kind=OPER_NODE;
-        return subTreeTemp;
+        TreeNode* new_tree=new TreeNode;
+        new_tree->node_kind=OPER_NODE;
+        new_tree->oper=ppi->next_token.type;
+        new_tree->line_num=pci->in_file.cur_line_num;
+
+        new_tree->child[0]=tree;
+        Match(pci, ppi, ppi->next_token.type);
+        new_tree->child[1]=MathExpr(pci, ppi);
+
+        pci->debug_file.Out("End Expr");
+        return new_tree;
     }
-    return subTree;
+    pci->debug_file.Out("End Expr");
+    return tree;
 }
 
 // writestmt -> write expr
-TreeNode* writestmtFun(CompilerInfo* compInfo, Token *next_token)
+TreeNode* WriteStmt(CompilerInfo* pci, ParseInfo* ppi)
 {
+    pci->debug_file.Out("Start WriteStmt");
 
-    TreeNode* subTree=new TreeNode;
+    TreeNode* tree=new TreeNode;
+    tree->node_kind=WRITE_NODE;
+    tree->line_num=pci->in_file.cur_line_num;
 
-    // Check first part "write" in "write expr"
-    if(next_token->type == WRITE){
-        GetNextToken(compInfo, next_token);
-    }
-    // Check second part "expr" in First child in subTree child
-    // in "write expr"
-    subTree->child[0]= exprFun(compInfo, next_token);
-    // Make type of node in subTree is WRITE_NODE
-    subTree->node_kind=WRITE_NODE;
-    return subTree;
+    Match(pci, ppi, WRITE);
+    tree->child[0]=Expr(pci, ppi);
+
+    pci->debug_file.Out("End WriteStmt");
+    return tree;
 }
 
 // readstmt -> read identifier
-TreeNode* readstmtFun(CompilerInfo* compInfo, Token *next_token)
+TreeNode* ReadStmt(CompilerInfo* pci, ParseInfo* ppi)
 {
+    pci->debug_file.Out("Start ReadStmt");
 
-    TreeNode* subTree=new TreeNode;
-    // Check first part "read" in "read identifier"
-    if(next_token->type == READ){
-        GetNextToken(compInfo, next_token);
-    }
-    // Check second part "identifier" in "read identifier"
-    if(next_token->type == ID){
-        AllocateAndCopy(&subTree->id, next_token->str);
-        GetNextToken(compInfo, next_token);
-    }
-    // Make type of node in subTree is READ_NODE
-    subTree->node_kind=READ_NODE;
-    return subTree;
+    TreeNode* tree=new TreeNode;
+    tree->node_kind=READ_NODE;
+    tree->line_num=pci->in_file.cur_line_num;
+
+    Match(pci, ppi, READ);
+    if(ppi->next_token.type==ID) AllocateAndCopy(&tree->id, ppi->next_token.str);
+    Match(pci, ppi, ID);
+
+    pci->debug_file.Out("End ReadStmt");
+    return tree;
 }
 
 // assignstmt -> identifier := expr
-TreeNode* assignstmtFun(CompilerInfo* compInfo, Token *next_token)
+TreeNode* AssignStmt(CompilerInfo* pci, ParseInfo* ppi)
 {
+    pci->debug_file.Out("Start AssignStmt");
 
-    TreeNode* subTree=new TreeNode;
-    // Check first part "identifier" in "identifier := expr"
-    if(next_token->type == ID){
-        // Copy data in next token in subTree id
-        AllocateAndCopy(&subTree->id, next_token->str);
-        GetNextToken(compInfo, next_token);
-    }
-    // Check second part  ":="  in "identifier := expr"
-    if(next_token->type == ASSIGN){
-        GetNextToken(compInfo, next_token);
-    }
-    // Check third part "expr" in First child in subTree child
-    // in "identifier := expr"
-    subTree->child[0]= exprFun(compInfo, next_token);
-    // Make type of node in subTree is ASSIGN_NODE
-    subTree->node_kind=ASSIGN_NODE;
-    return subTree;
+    TreeNode* tree=new TreeNode;
+    tree->node_kind=ASSIGN_NODE;
+    tree->line_num=pci->in_file.cur_line_num;
+
+    if(ppi->next_token.type==ID) AllocateAndCopy(&tree->id, ppi->next_token.str);
+    Match(pci, ppi, ID);
+    Match(pci, ppi, ASSIGN); tree->child[0]=Expr(pci, ppi);
+
+    pci->debug_file.Out("End AssignStmt");
+    return tree;
 }
 
-TreeNode* stmtseqFun(CompilerInfo *compInfo, Token *next_token);
+TreeNode* StmtSeq(CompilerInfo*, ParseInfo*);
 
 // repeatstmt -> repeat stmtseq until expr
-TreeNode* repeatstmtFun(CompilerInfo* pci, Token *next_token)
+TreeNode* RepeatStmt(CompilerInfo* pci, ParseInfo* ppi)
 {
+    pci->debug_file.Out("Start RepeatStmt");
 
-    TreeNode* subTree=new TreeNode;
+    TreeNode* tree=new TreeNode;
+    tree->node_kind=REPEAT_NODE;
+    tree->line_num=pci->in_file.cur_line_num;
 
-    //Check first part  "repeat"  in repeat stmtseq until expr
-    if(next_token->type == REPEAT){
-        GetNextToken(pci, next_token);
-    }
-    //Check second part  "stmtseq" and put it in first subTree child  in
-    // "repeat stmtseq until expr"
-    subTree->child[0]= stmtseqFun(pci, next_token);
-    //Check third part "UNTIL" in repeat stmtseq until expr
-    if(next_token->type == UNTIL){
-        GetNextToken(pci, next_token);
-    }
-    //Check fourth part  "exp" and put it in second subTree child  in
-    // "repeat stmtseq until expr"
-    subTree->child[1]= exprFun(pci, next_token);
-    // Make type of node in subTree is REPEAT_NODE
-    subTree->node_kind=REPEAT_NODE;
-    return subTree;
+    Match(pci, ppi, REPEAT); tree->child[0]=StmtSeq(pci, ppi);
+    Match(pci, ppi, UNTIL); tree->child[1]=Expr(pci, ppi);
+
+    pci->debug_file.Out("End RepeatStmt");
+    return tree;
 }
 
 // ifstmt -> if exp then stmtseq [ else stmtseq ] end
-TreeNode* ifstmtFun(CompilerInfo* compInfo, Token *next_token)
+TreeNode* IfStmt(CompilerInfo* pci, ParseInfo* ppi)
 {
-    TreeNode* subTree=new TreeNode;
+    pci->debug_file.Out("Start IfStmt");
 
-     //Check first part  "if"  in "if exp then stmtseq [ else stmtseq ] end"
-    if(next_token->type == IF){
-        GetNextToken(compInfo, next_token);
-    }
-    //Check second part "exp" and put it in first subTree child
-    subTree->child[0]= exprFun(compInfo, next_token);
-    //Check third part "then" in "if exp then stmtseq [ else stmtseq ] end"
-    if(next_token->type == THEN){
-        GetNextToken(compInfo, next_token);
-    }
-    //Check fourth part "stmtseq" and put it in second subTree child
-    subTree->child[1]= stmtseqFun(compInfo, next_token);
-    //Check fifth part "else" in "if exp then stmtseq [ else stmtseq ] end"
-    if(next_token->type==ELSE) {
-            GetNextToken(compInfo, next_token);
-            //Check sixth part "stmtseq" and put it in third subTree child
-           subTree->child[2]= stmtseqFun(compInfo, next_token);
-    }
-    //Check sixth part "END" in stmtseq [ else stmtseq ] end
-    if(next_token->type == END){
-        GetNextToken(compInfo, next_token);
-    }
-    // Make type of node in subTree is IF_NODE
-    subTree->node_kind=IF_NODE;
-    return subTree;
+    TreeNode* tree=new TreeNode;
+    tree->node_kind=IF_NODE;
+    tree->line_num=pci->in_file.cur_line_num;
+
+    Match(pci, ppi, IF); tree->child[0]=Expr(pci, ppi);
+    Match(pci, ppi, THEN); tree->child[1]=StmtSeq(pci, ppi);
+    if(ppi->next_token.type==ELSE) {Match(pci, ppi, ELSE); tree->child[2]=StmtSeq(pci, ppi);}
+    Match(pci, ppi, END);
+
+    pci->debug_file.Out("End IfStmt");
+    return tree;
 }
 
 // stmt -> ifstmt | repeatstmt | assignstmt | readstmt | writestmt
-TreeNode* stmtFun(CompilerInfo* compInfo, Token *next_token)
+TreeNode* Stmt(CompilerInfo* pci, ParseInfo* ppi)
 {
+    pci->debug_file.Out("Start Stmt");
 
-    TreeNode* subTree= nullptr;
-    // If next token type is IF statement
-    if(next_token->type==IF) subTree= ifstmtFun(compInfo, next_token);
-        // If next token type is IDENTIFIER
-    else if(next_token->type==ID) subTree= assignstmtFun(compInfo, next_token);
+    // Compare the next token with the First() of possible statements
+    TreeNode* tree=0;
+    if(ppi->next_token.type==IF) tree=IfStmt(pci, ppi);
+    else if(ppi->next_token.type==REPEAT) tree=RepeatStmt(pci, ppi);
+    else if(ppi->next_token.type==ID) tree=AssignStmt(pci, ppi);
+    else if(ppi->next_token.type==READ) tree=ReadStmt(pci, ppi);
+    else if(ppi->next_token.type==WRITE) tree=WriteStmt(pci, ppi);
+    else throw 0;
 
-    // If next token type is REPEAT statement
-    else if(next_token->type==REPEAT) subTree= repeatstmtFun(compInfo, next_token);
-       // If next token type is WRITE statment
-    else if(next_token->type==WRITE) subTree= writestmtFun(compInfo, next_token);
-        // If next token type is READ statment
-    else if(next_token->type==READ) subTree= readstmtFun(compInfo, next_token);
-    // if stmt not IF , REPEAT , ID , WRITE ,READ
-    else{
-        return nullptr;
-    }
-    return subTree;
+    pci->debug_file.Out("End Stmt");
+    return tree;
 }
 
 // stmtseq -> stmt { ; stmt }
-TreeNode* stmtseqFun(CompilerInfo* compInfo, Token *next_token)
+TreeNode* StmtSeq(CompilerInfo* pci, ParseInfo* ppi)
 {
-    //First part stmt
-    TreeNode* left_part= stmtFun(compInfo, next_token);
-    //Second part {; stmt}
-    TreeNode* right_part=left_part;
+    pci->debug_file.Out("Start StmtSeq");
 
-    //  Will work until reach to ENDFILE or END of if or ELSE or UNTIL
-    while(!(next_token->type==ENDFILE || next_token->type==ELSE   ||
-            next_token->type==UNTIL|| next_token->type==END  ))
+    TreeNode* first_tree=Stmt(pci, ppi);
+    TreeNode* last_tree=first_tree;
+
+    // If we did not reach one of the Follow() of StmtSeq(), we are not done yet
+    while(ppi->next_token.type!=ENDFILE && ppi->next_token.type!=END &&
+          ppi->next_token.type!=ELSE && ppi->next_token.type!=UNTIL)
     {
-       // To skip when meet SEMI_COLON
-        if(next_token->type == SEMI_COLON){
-            GetNextToken(compInfo, next_token);
-        }
-        // Call stmtFun  stmt -> ifstmt | repeatstmt | assignstmt | readstmt | writestmt
-        TreeNode* next_tree= stmtFun(compInfo, next_token);
-        right_part->sibling=next_tree;
-        right_part=next_tree;
+        Match(pci, ppi, SEMI_COLON);
+        TreeNode* next_tree=Stmt(pci, ppi);
+        last_tree->sibling=next_tree;
+        last_tree=next_tree;
     }
 
-    return left_part;
+    pci->debug_file.Out("End StmtSeq");
+    return first_tree;
 }
 
-//void PrintTree(TreeNode* node, int sh=0)
-//{
-//    int i, NSH=3;
-//    for(i=0;i<sh;i++) printf(" ");
-//
-//    printf("[%s]", NodeKindStr[node->node_kind]);
-//
-//    if(node->node_kind==OPER_NODE) printf("[%s]", TokenTypeStr[node->oper]);
-//    else if(node->node_kind==NUM_NODE) printf("[%d]", node->num);
-//    else if(node->node_kind==ID_NODE || node->node_kind==READ_NODE || node->node_kind==ASSIGN_NODE) printf("[%s]", node->id);
-//
-//    if(node->expr_data_type!=VOID) printf("[%s]", ExprDataTypeStr[node->expr_data_type]);
-//
-//    printf("\n");
-//
-//    for(i=0;i<MAX_CHILDREN;i++) if(node->child[i]) PrintTree(node->child[i], sh+NSH);
-//    if(node->sibling) PrintTree(node->sibling, sh);
-//}
-void PrintTreeToFile(FILE* outputFile, TreeNode* node,int sh = 0) {
-    int i, NSH = 3;
-    for (i = 0; i < sh; i++) {
-        fprintf(outputFile, " ");
+// program -> stmtseq
+TreeNode* Parse(CompilerInfo* pci)
+{
+    ParseInfo parse_info;
+    GetNextToken(pci, &parse_info.next_token);
+
+    TreeNode* syntax_tree=StmtSeq(pci, &parse_info);
+
+    if(parse_info.next_token.type!=ENDFILE)
+        pci->debug_file.Out("Error code ends before file ends");
+
+    return syntax_tree;
+}
+
+void PrintTree(TreeNode* node, int sh=0)
+{
+    int i, NSH=3;
+    for(i=0;i<sh;i++) printf(" ");
+
+    printf("[%s]", NodeKindStr[node->node_kind]);
+
+    if(node->node_kind==OPER_NODE) printf("[%s]", TokenTypeStr[node->oper]);
+    else if(node->node_kind==NUM_NODE) printf("[%d]", node->num);
+    else if(node->node_kind==ID_NODE || node->node_kind==READ_NODE || node->node_kind==ASSIGN_NODE) printf("[%s]", node->id);
+
+    if(node->expr_data_type!=VOID) printf("[%s]", ExprDataTypeStr[node->expr_data_type]);
+
+    printf("\n");
+
+    for(i=0;i<MAX_CHILDREN;i++) if(node->child[i]) PrintTree(node->child[i], sh+NSH);
+    if(node->sibling) PrintTree(node->sibling, sh);
+}
+
+void DestroyTree(TreeNode* node)
+{
+    int i;
+
+    if(node->node_kind==ID_NODE || node->node_kind==READ_NODE || node->node_kind==ASSIGN_NODE)
+        if(node->id) delete[] node->id;
+
+    for(i=0;i<MAX_CHILDREN;i++) if(node->child[i]) DestroyTree(node->child[i]);
+    if(node->sibling) DestroyTree(node->sibling);
+
+    delete node;
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+// Analyzer ////////////////////////////////////////////////////////////////////////
+
+const int SYMBOL_HASH_SIZE=10007;
+
+struct LineLocation
+{
+    int line_num;
+    LineLocation* next;
+};
+
+struct VariableInfo
+{
+    char* name;
+    int memloc;
+    LineLocation* head_line; // the head of linked list of source line locations
+    LineLocation* tail_line; // the tail of linked list of source line locations
+    VariableInfo* next_var; // the next variable in the linked list in the same hash bucket of the symbol table
+};
+
+struct SymbolTable
+{
+    int num_vars;
+    VariableInfo* var_info[SYMBOL_HASH_SIZE];
+
+    SymbolTable() {num_vars=0; int i; for(i=0;i<SYMBOL_HASH_SIZE;i++) var_info[i]=0;}
+
+    int Hash(const char* name)
+    {
+        int i, len=strlen(name);
+        int hash_val=11;
+        for(i=0;i<len;i++) hash_val=(hash_val*17+(int)name[i])%SYMBOL_HASH_SIZE;
+        return hash_val;
     }
 
-    fprintf(outputFile, "[%s]", NodeKindStr[node->node_kind]);
-
-    if (node->node_kind == OPER_NODE) {
-        fprintf(outputFile, "[%s]", TokenTypeStr[node->oper]);
-    } else if (node->node_kind == NUM_NODE) {
-        fprintf(outputFile, "[%d]", node->num);
-    } else if (node->node_kind == ID_NODE || node->node_kind == READ_NODE || node->node_kind == ASSIGN_NODE) {
-        fprintf(outputFile, "[%s]", node->id);
+    VariableInfo* Find(const char* name)
+    {
+        int h=Hash(name);
+        VariableInfo* cur=var_info[h];
+        while(cur)
+        {
+            if(Equals(name, cur->name)) return cur;
+            cur=cur->next_var;
+        }
+        return 0;
     }
 
-    if (node->expr_data_type != VOID) {
-        fprintf(outputFile, "[%s]", ExprDataTypeStr[node->expr_data_type]);
+    void Insert(const char* name, int line_num)
+    {
+        LineLocation* lineloc=new LineLocation;
+        lineloc->line_num=line_num;
+        lineloc->next=0;
+
+        int h=Hash(name);
+        VariableInfo* prev=0;
+        VariableInfo* cur=var_info[h];
+
+        while(cur)
+        {
+            if(Equals(name, cur->name))
+            {
+                // just add this line location to the list of line locations of the existing var
+                cur->tail_line->next=lineloc;
+                cur->tail_line=lineloc;
+                return;
+            }
+            prev=cur;
+            cur=cur->next_var;
+        }
+
+        VariableInfo* vi=new VariableInfo;
+        vi->head_line=vi->tail_line=lineloc;
+        vi->next_var=0;
+        vi->memloc=num_vars++;
+        AllocateAndCopy(&vi->name, name);
+
+        if(!prev) var_info[h]=vi;
+        else prev->next_var=vi;
     }
 
-    fprintf(outputFile, "\n");
-
-    for (i = 0; i < MAX_CHILDREN; i++) {
-        if (node->child[i]) {
-            PrintTreeToFile(outputFile, node->child[i], sh + NSH);
+    void Print()
+    {
+        int i;
+        for(i=0;i<SYMBOL_HASH_SIZE;i++)
+        {
+            VariableInfo* curv=var_info[i];
+            while(curv)
+            {
+                printf("[Var=%s][Mem=%d]", curv->name, curv->memloc);
+                LineLocation* curl=curv->head_line;
+                while(curl)
+                {
+                    printf("[Line=%d]", curl->line_num);
+                    curl=curl->next;
+                }
+                printf("\n");
+                curv=curv->next_var;
+            }
         }
     }
 
-    if (node->sibling) {
-        PrintTreeToFile(outputFile, node->sibling, sh);
+    void Destroy()
+    {
+        int i;
+        for(i=0;i<SYMBOL_HASH_SIZE;i++)
+        {
+            VariableInfo* curv=var_info[i];
+            while(curv)
+            {
+                LineLocation* curl=curv->head_line;
+                while(curl)
+                {
+                    LineLocation* pl=curl;
+                    curl=curl->next;
+                    delete pl;
+                }
+                VariableInfo* p=curv;
+                curv=curv->next_var;
+                delete p;
+            }
+            var_info[i]=0;
+        }
     }
+};
+
+void Fill(TreeNode* treeNode, SymbolTable* symbolTable)
+{
+    //When node kind is read or id or assign then insert it in symbol Table
+    if(treeNode->node_kind == READ_NODE || treeNode->node_kind == ID_NODE || treeNode->node_kind == ASSIGN_NODE)
+        symbolTable->Insert(treeNode->id, treeNode->line_num);
+     //Iterate over all children in the treeNode
+    for(int idx=0;idx<MAX_CHILDREN;idx++) if(treeNode->child[idx]) Fill(treeNode->child[idx], symbolTable);
+
+    //When node kind is identifier node or numerical node then make data type equal integer
+    if(treeNode->node_kind == ID_NODE || treeNode->node_kind == NUM_NODE) treeNode->expr_data_type=INTEGER;
+    //When node kind is operation node
+    else if(treeNode->node_kind == OPER_NODE)
+    {
+        // When operation is not equal or not  less than then make data type INTEGER
+        if(treeNode->oper != EQUAL &&treeNode->oper !=LESS_THAN){
+            treeNode->expr_data_type=INTEGER;
+        }
+        // When operation is equal or less than then make data type equal boolean
+        else treeNode->expr_data_type=BOOLEAN;
+    }
+    //When node kind is if condition and the condition data type not equal boolean
+    if(treeNode->node_kind == IF_NODE && treeNode->child[0]->expr_data_type != BOOLEAN) cout<<"Condition of if must be BOOLEAN\n";
+
+    //When node kind is repeat condition and the condition data type not equal boolean
+    if(treeNode->node_kind == REPEAT_NODE && treeNode->child[1]->expr_data_type != BOOLEAN) cout<<("Condition of repeat must be BOOLEAN\n");
+    //When node kind equal operation node
+    if(treeNode->node_kind == OPER_NODE)
+    {
+        //When any of two child not equal integer
+        if(treeNode->child[0]->expr_data_type != INTEGER || treeNode->child[1]->expr_data_type != INTEGER)
+            cout<<"Operator applied on non integer values only\n";
+    }
+    //When node kind is write condition and the data type  not equal integer
+    if(treeNode->node_kind == WRITE_NODE && treeNode->child[0]->expr_data_type != INTEGER) cout<<("Write works only for INTEGER\n");
+    //When node kind is assign condition and the data type  not equal integer
+    if(treeNode->node_kind == ASSIGN_NODE && treeNode->child[0]->expr_data_type != INTEGER) cout<<("Assign works only for INTEGER\n");
+     //When Found sibling
+    if(treeNode->sibling) Fill(treeNode->sibling, symbolTable);
+}
+
+/////////////////////////////////////////////////////
+
+int fastPower(int base, int pw)
+{
+    if(base==0) return 0;
+    if(pw==0) return 1;
+    int halfPower = fastPower(base,pw/2);
+    int res = halfPower * halfPower;
+    if(pw%2 ==1)res *=base;
+    return res;
+}
+
+int calculate(TreeNode* treeNode, SymbolTable* symbolTable, int* variables)
+{
+    // If node kind is identifier then get the location of the identifier in memory
+    if(treeNode->node_kind == ID_NODE) return variables[symbolTable->Find(treeNode->id)->memloc];
+    // If node kind is numerical node then return value of tree node
+    if(treeNode->node_kind == NUM_NODE) return treeNode->num;
+    //Get the value of first child
+    int firstChildValue= calculate(treeNode->child[0], symbolTable, variables);
+    //Get the value of second child
+    int secondChildValue= calculate(treeNode->child[1], symbolTable, variables);
+    //Case operation is power
+    if(treeNode->oper == POWER) return fastPower(firstChildValue, secondChildValue);
+    //Case operation is less_than
+    if(treeNode->oper == LESS_THAN) return firstChildValue < secondChildValue;
+    //Case operation is EQUAL
+    if(treeNode->oper == EQUAL) return firstChildValue == secondChildValue;
+    //Case operation is Plus
+    if(treeNode->oper == PLUS) return firstChildValue + secondChildValue;
+    //Case operation is MINUS
+    if(treeNode->oper == MINUS) return firstChildValue - secondChildValue;
+    //Case operation is TIMES
+    if(treeNode->oper == TIMES) return firstChildValue * secondChildValue;
+    //Case operation is DIVIDE
+    if(treeNode->oper == DIVIDE) return firstChildValue / secondChildValue;
+
+    //Case not one operation of this
+    throw 0;
+}
+
+void theProgram(TreeNode* treeNode, SymbolTable* symbolTable, int* variables)
+{
+    //Here when node kind is read node then take the input of variable from user
+    if(treeNode->node_kind == READ_NODE)
+    {
+        cout<<"Enter "<<treeNode->id<<": ";
+        cin>>variables[symbolTable->Find(treeNode->id)->memloc];
+    }
+    //Here when node is write node then print the answer to user
+    if(treeNode->node_kind == WRITE_NODE)
+    {
+        int v= calculate(treeNode->child[0], symbolTable, variables);
+        cout<<"Value: "<<v<<"\n";
+    }
+    // Here calculate the first and second child for all tree node
+    if(treeNode->node_kind == REPEAT_NODE)
+    {
+        theProgram(treeNode->child[0], symbolTable, variables);
+        while(!calculate(treeNode->child[1], symbolTable, variables))
+        {
+            theProgram(treeNode->child[0], symbolTable, variables);
+        }
+    }
+    // When node kind is if-node
+    if(treeNode->node_kind == IF_NODE)
+    {
+        int conditionAchieved= calculate(treeNode->child[0], symbolTable, variables);
+        //if the inside condition achieved (then)
+        if(conditionAchieved) theProgram(treeNode->child[1], symbolTable, variables);
+        // if found else
+        else if(treeNode->child[2]) theProgram(treeNode->child[2], symbolTable, variables);
+    }
+    // When node kind is assign-mode
+    if(treeNode->node_kind == ASSIGN_NODE)
+    {
+        //calculate the value of variable
+        int value= calculate(treeNode->child[0], symbolTable, variables);
+        //Store if in the variable
+        variables[symbolTable->Find(treeNode->id)->memloc]=value;
+    }
+   //Call function when has a sibling
+    if(treeNode->sibling) theProgram(treeNode->sibling, symbolTable, variables);
 }
 
 int main()
 {
-    CompilerInfo compiler_info("inFile.txt", "otFile.txt", "deFile.txt");
-    // Here start parsing process and make start from first part
-    // in Bnf grammar "program -> stmtseq"
-    Token *next_token = new Token;
-    GetNextToken(&compiler_info,next_token);
-    TreeNode* syntax_tree= stmtseqFun(&compiler_info, next_token);
-    FILE* outputFile = fopen("otFile.txt", "w");
-    PrintTreeToFile(outputFile,syntax_tree,0);
+
+    CompilerInfo compiler_info("inFile.txt", "output.txt", "debug.txt");
+    TreeNode* syntaxTree=Parse(&compiler_info);
+
+    SymbolTable symbolTable;
+    //Fill syntax Tree and symbol Table
+    Fill(syntaxTree, &symbolTable);
+    cout<<"Symbol Table:\n";
+    //print symbol Table
+    symbolTable.Print();
+    cout<<"-----------------------------------------------\n";
+
+    cout<<"Syntax Tree:\n";
+    //print symbol tree
+    PrintTree(syntaxTree);
+    cout<<"-----------------------------------------------\n";
+    cout<<"Run Program:\n";
+    //Make array variables of size all variables in the program
+    int* variables=new int[symbolTable.num_vars];
+    //put initial values of to variables
+    for(int i=0; i < symbolTable.num_vars; i++) variables[i]=0;
+    //Run the program
+    theProgram(syntaxTree, &symbolTable, variables);
+    //Delete the Array after end
+    delete[] variables;
+    cout<<"-----------------------------------------------\n";
+    //Destory symbol Table
+    symbolTable.Destroy();
+    //Destory syntax Tree
+    DestroyTree(syntaxTree);
     return 0;
 }
 

@@ -1,8 +1,8 @@
-# Install script for directory: D:/Faculty of Computer and Artificial Intelligence/Computer Science/CS_4_semesiter1/compiler/Compiler_A2_20210614_20200029_CS
+# Install script for directory: D:/Faculty of Computer and Artificial Intelligence/Computer Science/CS_4_semesiter1/compiler/code_generation_assignment/S3_20190562_20190041
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "C:/Program Files (x86)/parser_assignement")
+  set(CMAKE_INSTALL_PREFIX "C:/Program Files (x86)/code")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "D:/Faculty of Computer and Artificial Intelligence/Computer Science/CS_4_semesiter1/compiler/Compiler_A2_20210614_20200029_CS/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "D:/Faculty of Computer and Artificial Intelligence/Computer Science/CS_4_semesiter1/compiler/code_generation_assignment/S3_20190562_20190041/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
