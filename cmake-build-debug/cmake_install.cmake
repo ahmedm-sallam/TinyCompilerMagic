@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/Ahmed M.Sallam/CLionProjects/parser_assignement
+# Install script for directory: D:/Faculty of Computer and Artificial Intelligence/Computer Science/CS_4_semesiter1/compiler/Compiler_A2_20210614_20200029_CS
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "C:/Users/Ahmed M.Sallam/CLionProjects/parser_assignement/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "D:/Faculty of Computer and Artificial Intelligence/Computer Science/CS_4_semesiter1/compiler/Compiler_A2_20210614_20200029_CS/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

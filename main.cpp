@@ -1,3 +1,7 @@
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
 /*
 
    _____              _        _                   __  __
@@ -7,16 +11,13 @@
   ____) |  / ____ \  | |____  | |____   / ____ \  | |  | |
  |_____/  /_/    \_\ |______| |______| /_/    \_\ |_|  |_|
 
- لا غالب الا الله
-    Free Palestine
+     Free Palestine
+ Ahmed Sallam 20210614
+ Ahmed Alaa 20200029
 */
-#include<bits/stdc++.h>
 
 
-/*
-Ahmed Mohamed Sallam 20210614
-Ahmed Alaa
- */
+
 using namespace std;
 
 /*
@@ -568,7 +569,6 @@ TreeNode* repeatstmtFun(CompilerInfo* pci, Token *next_token)
 // ifstmt -> if exp then stmtseq [ else stmtseq ] end
 TreeNode* ifstmtFun(CompilerInfo* compInfo, Token *next_token)
 {
-
     TreeNode* subTree=new TreeNode;
 
      //Check first part  "if"  in "if exp then stmtseq [ else stmtseq ] end"
@@ -587,7 +587,7 @@ TreeNode* ifstmtFun(CompilerInfo* compInfo, Token *next_token)
     if(next_token->type==ELSE) {
             GetNextToken(compInfo, next_token);
             //Check sixth part "stmtseq" and put it in third subTree child
-        subTree->child[2]= stmtseqFun(compInfo, next_token);
+           subTree->child[2]= stmtseqFun(compInfo, next_token);
     }
     //Check sixth part "END" in stmtseq [ else stmtseq ] end
     if(next_token->type == END){
@@ -646,23 +646,55 @@ TreeNode* stmtseqFun(CompilerInfo* compInfo, Token *next_token)
     return left_part;
 }
 
-void PrintTree(TreeNode* node, int sh = 0)
-{
-    int i, NSH=3;
-    for(i=0;i<sh;i++) printf(" ");
+//void PrintTree(TreeNode* node, int sh=0)
+//{
+//    int i, NSH=3;
+//    for(i=0;i<sh;i++) printf(" ");
+//
+//    printf("[%s]", NodeKindStr[node->node_kind]);
+//
+//    if(node->node_kind==OPER_NODE) printf("[%s]", TokenTypeStr[node->oper]);
+//    else if(node->node_kind==NUM_NODE) printf("[%d]", node->num);
+//    else if(node->node_kind==ID_NODE || node->node_kind==READ_NODE || node->node_kind==ASSIGN_NODE) printf("[%s]", node->id);
+//
+//    if(node->expr_data_type!=VOID) printf("[%s]", ExprDataTypeStr[node->expr_data_type]);
+//
+//    printf("\n");
+//
+//    for(i=0;i<MAX_CHILDREN;i++) if(node->child[i]) PrintTree(node->child[i], sh+NSH);
+//    if(node->sibling) PrintTree(node->sibling, sh);
+//}
+void PrintTreeToFile(FILE* outputFile, TreeNode* node,int sh = 0) {
+    int i, NSH = 3;
+    for (i = 0; i < sh; i++) {
+        fprintf(outputFile, " ");
+    }
 
-    printf("[%s]", NodeKindStr[node->node_kind]);
+    fprintf(outputFile, "[%s]", NodeKindStr[node->node_kind]);
 
-    if(node->node_kind==OPER_NODE) printf("[%s]", TokenTypeStr[node->oper]);
-    else if(node->node_kind==NUM_NODE) printf("[%d]", node->num);
-    else if(node->node_kind==ID_NODE || node->node_kind==READ_NODE || node->node_kind==ASSIGN_NODE) printf("[%s]", node->id);
+    if (node->node_kind == OPER_NODE) {
+        fprintf(outputFile, "[%s]", TokenTypeStr[node->oper]);
+    } else if (node->node_kind == NUM_NODE) {
+        fprintf(outputFile, "[%d]", node->num);
+    } else if (node->node_kind == ID_NODE || node->node_kind == READ_NODE || node->node_kind == ASSIGN_NODE) {
+        fprintf(outputFile, "[%s]", node->id);
+    }
 
-    if(node->expr_data_type!=VOID) printf("[%s]", ExprDataTypeStr[node->expr_data_type]);
+    if (node->expr_data_type != VOID) {
+        fprintf(outputFile, "[%s]", ExprDataTypeStr[node->expr_data_type]);
+    }
 
-    printf("\n");
+    fprintf(outputFile, "\n");
 
-    for(i=0;i<MAX_CHILDREN;i++) if(node->child[i]) PrintTree(node->child[i], sh+NSH);
-    if(node->sibling) PrintTree(node->sibling, sh);
+    for (i = 0; i < MAX_CHILDREN; i++) {
+        if (node->child[i]) {
+            PrintTreeToFile(outputFile, node->child[i], sh + NSH);
+        }
+    }
+
+    if (node->sibling) {
+        PrintTreeToFile(outputFile, node->sibling, sh);
+    }
 }
 
 int main()
@@ -673,9 +705,8 @@ int main()
     Token *next_token = new Token;
     GetNextToken(&compiler_info,next_token);
     TreeNode* syntax_tree= stmtseqFun(&compiler_info, next_token);
-    PrintTree(syntax_tree);
-    OutFile outFile("outFile.txt");  // Specify the output file
-    //PrintTree(syntax_tree, outFile);
+    FILE* outputFile = fopen("otFile.txt", "w");
+    PrintTreeToFile(outputFile,syntax_tree,0);
     return 0;
 }
 

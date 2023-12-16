@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "C:/Users/Ahmed M.Sallam/CLionProjects/parser_assignement/main.cpp" "CMakeFiles/parser_assignement.dir/main.cpp.obj" "gcc" "CMakeFiles/parser_assignement.dir/main.cpp.obj.d"
+  "D:/Faculty of Computer and Artificial Intelligence/Computer Science/CS_4_semesiter1/compiler/Compiler_A2_20210614_20200029_CS/main.cpp" "CMakeFiles/parser_assignement.dir/main.cpp.obj" "gcc" "CMakeFiles/parser_assignement.dir/main.cpp.obj.d"
   )
 
 # Targets to which this target links which contain Fortran sources.
